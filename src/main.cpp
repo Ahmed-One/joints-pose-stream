@@ -9,6 +9,7 @@
 #include "config.hpp"
 #include "drive.hpp"
 #include "joint_state_subscriber.hpp"
+#include "logger.hpp"
 #include "reader.hpp"
 #include "ring_buffer.hpp"
 #include "writer.hpp"
@@ -71,6 +72,7 @@ int main(int argc, char* argv[])
     if (reader_thread.joinable())
         reader_thread.join();
 
+    LOG::Dump();
     rclcpp::shutdown();
     return 0;
 }

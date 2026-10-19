@@ -8,6 +8,7 @@
 
 #include "config.hpp"
 #include "joints_pose.hpp"
+#include "logger.hpp"
 
 // Ring buffer for lock free data exchange
 template <std::size_t N>
@@ -26,16 +27,30 @@ class RingBuffer {
     // Each index is accessed by only its owning thread.
     std::size_t head_ = 0; // Writer's next slot
     std::size_t tail_ = 0; // Reader's next slot
+    bool writer_blocked_ = false;
+    bool reader_empty_ = false;
 
 public:
     // Call from the writer thread only.
     // Write a single pose
-    bool try_write_pose(const JointsPose& pose) noexcept {
+    bool try_write_pose(const JointsPose& pose) {
         Slot& slot = buffer_[head_];
 
         // Slot must be free before writing.
-        if (slot.available.load(std::memory_order_acquire))
+        if (slot.available.load(std::memory_order_acquire)) {
+            if (!writer_blocked_) {
+                LOG::Warn() << "RingBuffer full; writer paused at slot "
+                            << std::to_string(head_);
+                writer_blocked_ = true;
+            }
             return false;
+        }
+
+        if (writer_blocked_) {
+            LOG::Info() << "RingBuffer has space again; writer resumed at slot "
+                        << std::to_string(head_);
+            writer_blocked_ = false;
+        }
 
         slot.pose = pose;
 
@@ -48,7 +63,7 @@ public:
 
     // Call from the writer thread only.
     // Write a stream of poses
-    bool try_write_pose_stream(const std::array<JointsPose, BUFF_SIZE>& stream) noexcept {
+    bool try_write_pose_stream(const std::array<JointsPose, BUFF_SIZE>& stream) {
         return std::all_of(stream.begin(), stream.end(),
             [this](const auto& pose){
                 return try_write_pose(pose);
@@ -57,10 +72,15 @@ public:
 
     // Call from the reader thread only.
     // If poses are unavailable, re-reads last pose
-    bool try_read(JointsPose& output) noexcept {
+    bool try_read(JointsPose& output) {
         Slot& slot = buffer_[tail_];
 
         if (slot.available.load(std::memory_order_acquire)) {
+            if (reader_empty_) {
+                // LOG::Info() << "RingBuffer has data again; reader resumed at slot "
+                //             << std::to_string(tail_);
+                reader_empty_ = false;
+            }
             output = slot.pose;
 
             // Release the slot only after copying is complete.
@@ -70,6 +90,11 @@ public:
             return true;
         }
         // No pose has ever been published and read.
+        if (!reader_empty_) {
+            LOG::Warn() << "RingBuffer empty; reader waiting at slot "
+                        << std::to_string(tail_);
+            reader_empty_ = true;
+        }
         return false;
     }
 };
