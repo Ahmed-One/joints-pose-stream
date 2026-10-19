@@ -1,6 +1,2 @@
 CompileFlags:
-  Add:
-    - -std=c++17
-    - -isystem=/opt/ros/lyrical/include/rclcpp
-    - -isystem=/opt/ros/lyrical/include
-    - --query-driver=/usr/bin/g++,/usr/bin/gcc
+  CompilationDatabase: ../../../build/joints_stream

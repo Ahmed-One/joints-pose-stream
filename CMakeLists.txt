@@ -8,6 +8,41 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+
+add_executable(joints_stream_node
+  src/main.cpp
+  src/drive.cpp
+  src/trajectory.cpp
+)
+target_compile_features(joints_stream_node PRIVATE cxx_std_17)
+target_include_directories(joints_stream_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_include_directories(joints_stream_node SYSTEM PRIVATE
+  ${rclcpp_INCLUDE_DIRS}
+  ${sensor_msgs_INCLUDE_DIRS}
+)
+target_link_libraries(joints_stream_node PRIVATE
+  ${rclcpp_LIBRARIES}
+  ${sensor_msgs_LIBRARIES}
+)
+
+install(TARGETS joints_stream_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY include/
+  DESTINATION include
+)
+
+install(PROGRAMS
+  scripts/tester.py
+  scripts/tester2.py
+  scripts/visualizer.py
+  scripts/visualizer2.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
